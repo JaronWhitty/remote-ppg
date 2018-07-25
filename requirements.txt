@@ -1,0 +1,6 @@
+numpy
+scipy
+coverage
+pytest
+coveralls
+sphinxcontrib-napoleon
