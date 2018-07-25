@@ -19,7 +19,7 @@ def filter_ppg(ppg, baseline_order = 2, baseline_width = 501):
     return detrended_ppg
 
 def filter_ecg(signal, normalized_frequency = .6, Q = 30, baseline_width = 301, 
-               baseline_order = 3, baseline_freq_low = .1, baseline_freq_high = 1, fs = 200, butter_order = 2,
+               baseline_order = 3, baseline_freq_low = .01, baseline_freq_high = .1, fs = 200, butter_order = 2,
                points = 11, num_peak_points = 5, preserve_peak = False):
     """
     filter and detrend a raw ECG signal 
