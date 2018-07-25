@@ -210,7 +210,7 @@ def spo2(ppgR, ppgIR, peak_order = 80, pulse_threshold = -700, consecutive_point
             break
     for i in range(list(mins).index(start), len(values)):
         try:
-            if values[i+1] < -pulse_threshold:
+            if values[i+1] < pulse_threshold:
                 end = mins[i]
                 break
         except IndexError:
