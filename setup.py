@@ -1,6 +1,6 @@
 
 from setuptools import setup
-setup(name='ecg_feature_selection',
+setup(name='ppg_features',
       version='1.0',
       description='Filter and extract features from finger PPG',
       long_description='',
@@ -14,7 +14,7 @@ setup(name='ecg_feature_selection',
           "numpy",
           "scipy"
       ],
-      packages = ['ecg_feature_selection'],
+      packages = ['ppg_features'],
       include_package_data=True,
       scripts=['ppg_features/ppg_features.py'],
               
