@@ -95,7 +95,7 @@ def test_bpm(set_up_bpm):
 
 @pytest.fixture
 def set_up_ptt():
-    x = np.arange(5000)
+    x = np.arange(2000)
     sin_wave = np.sin(2*np.pi*x/200)
     cos_wave = np.cos(2*np.pi*x/200)
     return sin_wave, cos_wave
