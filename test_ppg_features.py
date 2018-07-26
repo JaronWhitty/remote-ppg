@@ -68,9 +68,14 @@ def set_up_ppg():
 
 def test_spo2(set_up_ppg):
     nsr_IR, nsr_R = set_up_ppg
+    noise = [1000, -1000]*1000
+    nsr_IR_noise = np.array(noise + list(nsr_IR) + noise)
+    nsr_R_noise = np.array(noise + list(nsr_R) + noise)
     assert ppg.spo2(nsr_R, nsr_IR) > 90
     assert ppg.spo2(nsr_R, nsr_R) == 85
     assert ppg.spo2(nsr_IR, nsr_IR) == 85
+    #adding noise to the beginning and end of the ppg signal should not effect the spo2 much
+    assert abs(ppg.spo2(nsr_R, nsr_IR) - ppg.spo2(nsr_R_noise, nsr_IR_noise)) < .1
     
 def test_perfusion_index(set_up_ppg):
     nsr_IR, nsr_R = set_up_ppg
