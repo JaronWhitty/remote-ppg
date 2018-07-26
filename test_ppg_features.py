@@ -75,7 +75,7 @@ def test_spo2(set_up_ppg):
 def test_perfusion_index(set_up_ppg):
     nsr_IR, nsr_R = set_up_ppg
     nsr_IR_lessDC = nsr_IR - 10000
-    assert ppg.perfusion_index(nsr_IR) > ppg.perfusion_index(nsr_IR_lessDC)
+    assert ppg.perfusion_index(nsr_IR) < ppg.perfusion_index(nsr_IR_lessDC)
     assert ppg.perfusion_index(nsr_R) > ppg.perfusion_index(nsr_IR)
 
 @pytest.fixture
