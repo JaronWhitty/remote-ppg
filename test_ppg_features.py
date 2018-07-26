@@ -40,6 +40,8 @@ def test_get_r_peaks(set_up_filter):
     peaks_chicken = ppg.get_r_peaks(filt_chicken)
     peaks_peaker = ppg.get_r_peaks(filt_peaker)
     peaks_cut = ppg.get_r_peaks(filt_chicken_cut)
+    noise = np.array([-10000, 10000] * 2500)
+    assert len(ppg.get_r_peaks(noise)) == 0
     assert len(peaks_peaker) == 50
     assert len(peaks_nothing) > 0
     assert len(peaks_chicken) > 0
