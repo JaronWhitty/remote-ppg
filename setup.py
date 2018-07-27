@@ -12,7 +12,8 @@ setup(name='ppg_features',
       tests_require=['pytest', 'python-coveralls', 'coverage'],
       install_requires=[
           "numpy",
-          "scipy"
+          "scipy",
+		  "ecg_featre_selection"
       ],
       packages = ['ppg_features'],
       include_package_data=True,

@@ -1,6 +1,7 @@
 from __future__ import division
 import scipy.signal as sig
 import numpy as np
+import ecg_feature_selection as efs
 
 
 def filter_ppg(ppg, baseline_order = 2, baseline_width = 501):
@@ -20,172 +21,6 @@ def filter_ppg(ppg, baseline_order = 2, baseline_width = 501):
     
     return detrended_ppg
 
-def filter_ecg(signal, normalized_frequency = .6, Q = 30, baseline_width = 301, 
-               baseline_order = 3, baseline_freq_low = .01, baseline_freq_high = .1, fs = 200, butter_order = 2,
-               points = 11, num_peak_points = 5, preserve_peak = False):
-    """
-    filter and detrend a raw ECG signal 
-    
-    Args:
-        signal (numpy array): The raw ECG data 
-        normalized_frequency (float): the normalized frequency we wish to filter out, must be between 0 and 1, with 1 being half the sampling frequency. Default .6
-        Q (int): Quality factor for the notch filter. Default 30
-        baseline_width (int): How wide a window to use for the baseline removal. Default 301
-        baseline_order (int): Polynomial degree to use for the baseline removal. Default 3
-        baseline_freq_low (float): low end of frequency to cut off to eliminate baseline drift. Default .01 Hz
-        baseline_freq_high (float): high end frequency to cut off to eliminate baseline drift. Default .1 Hz
-        butter_order (int): The order of the butter filter used to eliminate baseline drift. Defualt 2
-        points (int): The number of points to use for the bartlett window. Default 11
-        num_peak_points (int): The number of points around each r-peak to keep at their original amplitude. Default 5
-        
-    Returns:
-         numpy array: The filtered and detrended ECG signal
-    """
-    #filter out some specific frequency noise
-    b, a = sig.iirnotch(normalized_frequency, Q)
-    filt_signal = sig.filtfilt(b, a, signal, axis = 0)
-    #remove baseline wander
-    baseline = sig.savgol_filter(filt_signal, baseline_width, baseline_order, axis = 0)
-    detrended_signal = filt_signal - baseline
-    #using a zero phase iir filter based off a butterworth of order 2 cutting off low frequencies
-    #Other Option (Use a much higher baseline_width, 1301 perhaps)
-    #nyquist = fs / 2
-    #bb, ba = sig.iirfilter(butter_order, [baseline_freq_low / nyquist, baseline_freq_high / nyquist])
-    #trend = sig.filtfilt(bb, ba, filt_signal, axis = 0)
-    #center trendline onto signal
-    #together = np.median(trend) - np.median(filt_signal)
-    #trend_center = trend - together
-    #baseline_removed = filt_signal - trend_center
-    #trend2 = sig.savgol_filter(baseline_removed, baseline_width, baseline_order)
-    #baseline_removed = baseline_removed - trend2 
-    #wiener filter
-    filt_signal = sig.wiener(detrended_signal)
-    #filt_signal = sig.wiener(baseline_removed)
-    #smooth signal some more for cleaner average heartbeat
-    bart = np.bartlett(points)
-    smooth_signal = np.convolve(bart/bart.sum(), filt_signal, mode = 'same')
-    
-    #preserve the r-peak amplitude (if desired)
-    #When smoothing the curve with np.convolve, we destroy amplitude in the r-peaks. We use the detrended signal's 
-    #peak amplitude to preserve the r-peak amplitude to stay consistent with a normal ECG waveform. 
-    if preserve_peak:
-        r_peaks = get_r_peaks(detrended_signal)
-        #r_peaks = get_r_peaks(baseline_removed)
-        for peak in r_peaks:
-            for i in range(num_peak_points):
-                #smooth_signal[peak + i] = detrended_signal[peak + i]
-                #smooth_signal[peak - i] = detrended_signal[peak - i]
-                if peak + i > len(detrended_signal)-1 or peak - i < 0:
-                    continue
-                else:
-                    smooth_signal[peak + i] = detrended_signal[peak + i]
-                    smooth_signal[peak - i] = detrended_signal[peak - i]
-                
-    
-    
-    return smooth_signal
-
-def get_r_peaks(signal, exp = 3, peak_order = 80, high_cut_off = .8, low_cut_off = .5, med_perc = .55, too_noisy = 1.6,
-                noise_level = 5000, noise_points = 10, r_peak_points = 10):
-    """
-    get the r peaks from raw ecg_signal 
-    
-    Args:
-        signal (numpy array): The signal from which to find the r-peaks
-        exp (int): exponent that we take the signal data to, find peaks easier. Default 2
-        peak_order (int): number of data points on each side to compare when finding peaks. Default 80
-        high_cut_off (float): percent above the median r-peak amplitude that constitues an invalid r-peak. Default .8
-        low_cut_off (float): percent below the median r-peak amplitude that constitutes an invalid r-peak. Dfeault .5
-        med_perc (float): percent of the median time one peak back and one peak forward that would surely not be an r peak. Defualt = .55
-        too_noisy (float): How many times the median standard deviation around an R peak that flags noise instead of acutal heart beat. Default 1.6
-        noise_level (float): Number above which we would consider noise from the original signal. Default 5000
-        noise_points (int): Number of points on each side of the peaks to check for the noise level. Default 10
-        r_peak_points (int): Number of points from the derivative critical point to look for the acutal r peak. Default 10
-    Returns:
-        numpy array: The indexes of the detected r-peaks
-    """
-    og_signal = signal
-    signal = filter_ecg(signal)
-    #exentuate the r peaks
-    #r_finder = signal**exp
-    #peaks = sig.argrelextrema(r_finder, np.greater, order = peak_order, mode = 'wrap')
-    #convert peaks to 1D numpy array
-    #peaks = peaks[0]
-    #use derivative and find mins to find general location of r peaks
-    deriv = np.gradient(signal)
-    peak_areas = sig.argrelmin(deriv, order = peak_order)
-    peak_areas = peak_areas[0]
-    #now find the maximum around each peak area
-    peaks = []
-    for area in peak_areas:
-        try:
-            peaks.append(list(signal).index(max(signal[area - r_peak_points:area])))
-        except ValueError: #if the area is right at the beginning 
-            peaks.append(list(signal).index(max(signal[:area])))
-    peaks = np.array(peaks)   
-    #when user is not touching the electrodes correctly, the sensor gives very high amplitude spikes, we ignore these
-    #ocassionaly there are higher amplitude t-waves then normal. These are still shorter amplitude to the r-peaks. We ignore these as well
-    median = np.median(signal[peaks])
-    valid = []
-    for i in range(len(peaks)):
-        if abs(signal[peaks[i]]) <= abs(median + median * high_cut_off) and abs(signal[peaks[i]]) >= abs(median - median * low_cut_off):
-            valid.append(i)
-    peaks = peaks[valid]        
-    #often times noise is filtered down to around the same level as r peaks and the standard deviation filter isn't good enough
-    #To cover these cases we look at the original unfiltered signal to take out peaks that are noise
-    valid = []
-    for i in range(len(peaks)):
-        if not any(og_signal[peaks[i] - noise_points: peaks[i] + noise_points] > noise_level):
-            valid.append(i)
-    peaks = peaks[valid]
-    #when the signal is all noise this will get rid of all the peaks
-    if len(peaks) == 0:
-        return peaks
-    #some t-waves are still caught in r-peak detection to filter those out look at the distance between peaks
-    #we look at the distances from one peak back to one peak forward, thus to single out t peaks
-    dist = []
-    for i in range(1, len(peaks) - 1):
-        dist.append(peaks[i+1] - peaks[i-1])
-    median = np.median(dist)
-    #from the way we look at the distance we skipped the first and last, so add them back in
-    
-    not_t = [0]
-   
-    for i in range(len(dist)):
-        if dist[i] > median*med_perc:
-            not_t.append(i + 1)
-
-    not_t.append(len(peaks) -1)
-    #occasionally there happens to be noise at a similar amplitude and similar distances as r-peaks 
-    #to get rid of these we can eliminate the detected peaks that have unusally high standard deviations around them
-    peaks = peaks[not_t]
-    not_noise = []
-    #find the distance before and after each peak to look at
-    dist = []
-    last = peaks[0]
-    for i in range(1, len(peaks)):
-        dist.append(peaks[i] - last)
-        last = peaks[i]
-    med_distance = np.median(dist)
-    look_distance = int(med_distance / 2)
-    #get the standard deviation around each peak
-    stds = []
-    for peak in peaks:
-        if peak - look_distance < 0:
-            stds.append(np.std(signal[:look_distance]))
-            continue
-        else:
-            stds.append(np.std(signal[peak - look_distance:peak + look_distance]))
-            
-    med_std = np.median(stds)
-    #accept only the peaks with more normal standard deviation around it
-    for i in range(len(stds)):
-        if stds[i] < too_noisy* med_std and stds[i] > 1/too_noisy * med_std:
-            not_noise.append(i)
-            
-    peaks = peaks[not_noise]
-    
-    return peaks
 
 def spo2(ppgR, ppgIR, peak_order = 80, pulse_threshold = -700, consecutive_points = 3):
     """
@@ -315,7 +150,7 @@ def pulse_transit_time(ecg, ppg, fs = 200, peak_order = 80, pulse_threshold = 1.
         float: The median pulse transit time
     """
     filt = filter_ppg(ppg)
-    r_peaks = get_r_peaks(ecg)
+    r_peaks = efs.get_r_peaks(ecg)
     mins = sig.argrelmin(filt, order = peak_order)[0]
     med = np.median(filt[mins])
     valleys = []
@@ -338,3 +173,5 @@ def pulse_transit_time(ecg, ppg, fs = 200, peak_order = 80, pulse_threshold = 1.
                 continue
     median_ptt = np.median(ptt)
     return median_ptt   
+
+
