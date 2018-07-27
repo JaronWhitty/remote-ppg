@@ -261,7 +261,7 @@ def perfusion_index(ppg, peak_order = 80, pulse_threshold = 1.5, look_distance =
             valleys.append(point)
     peaks = []
     for valley in valleys:
-        peaks.append(list(filt).index(max(filt[valley:valley + look_distance])))
+        peaks.append(list(filt[valley:]).index(max(filt[valley:valley + look_distance]))+ valley)
     #find the differences between the peaks and the mins
     difs = []
     for i in range(len(peaks)):
