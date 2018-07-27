@@ -10,7 +10,7 @@ Welcome to remote-ppg's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
+   ppg_features
 
 Indices and tables
 ==================
