@@ -1,5 +1,7 @@
+from __future__ import division
 import scipy.signal as sig
 import numpy as np
+
 
 def filter_ppg(ppg, baseline_order = 2, baseline_width = 501):
     """
@@ -10,7 +12,7 @@ def filter_ppg(ppg, baseline_order = 2, baseline_width = 501):
         baseline_order (int): The order to use for the savgol_filter in detrending. Defualt 3
         baseline_width (int): How many points the savgol filter will be using to detrend. Default 101
     Returns:
-        filtered (np array): Ther filtered and detrended ppg data
+        numpy array: Ther filtered and detrended ppg data
     """
     
     trendline = sig.savgol_filter(ppg, baseline_width, baseline_order)
@@ -43,22 +45,22 @@ def filter_ecg(signal, normalized_frequency = .6, Q = 30, baseline_width = 301,
     b, a = sig.iirnotch(normalized_frequency, Q)
     filt_signal = sig.filtfilt(b, a, signal, axis = 0)
     #remove baseline wander
-    #baseline = sig.savgol_filter(filt_signal, baseline_width, baseline_order, axis = 0)
-    #detrended_signal = filt_signal - baseline
+    baseline = sig.savgol_filter(filt_signal, baseline_width, baseline_order, axis = 0)
+    detrended_signal = filt_signal - baseline
     #using a zero phase iir filter based off a butterworth of order 2 cutting off low frequencies
-    """ Other Option (Use a much higher baseline_width, 1301 perhaps) """
-    nyquist = fs / 2
-    bb, ba = sig.iirfilter(butter_order, [baseline_freq_low / nyquist, baseline_freq_high / nyquist])
-    trend = sig.filtfilt(bb, ba, filt_signal, axis = 0)
+    #Other Option (Use a much higher baseline_width, 1301 perhaps)
+    #nyquist = fs / 2
+    #bb, ba = sig.iirfilter(butter_order, [baseline_freq_low / nyquist, baseline_freq_high / nyquist])
+    #trend = sig.filtfilt(bb, ba, filt_signal, axis = 0)
     #center trendline onto signal
-    together = np.median(trend) - np.median(filt_signal)
-    trend_center = trend - together
-    baseline_removed = filt_signal - trend_center
-    trend2 = sig.savgol_filter(baseline_removed, baseline_width, baseline_order)
-    baseline_removed = baseline_removed - trend2 
+    #together = np.median(trend) - np.median(filt_signal)
+    #trend_center = trend - together
+    #baseline_removed = filt_signal - trend_center
+    #trend2 = sig.savgol_filter(baseline_removed, baseline_width, baseline_order)
+    #baseline_removed = baseline_removed - trend2 
     #wiener filter
-    #filt_signal = sig.wiener(detrended_signal)
-    filt_signal = sig.wiener(baseline_removed)
+    filt_signal = sig.wiener(detrended_signal)
+    #filt_signal = sig.wiener(baseline_removed)
     #smooth signal some more for cleaner average heartbeat
     bart = np.bartlett(points)
     smooth_signal = np.convolve(bart/bart.sum(), filt_signal, mode = 'same')
@@ -67,23 +69,24 @@ def filter_ecg(signal, normalized_frequency = .6, Q = 30, baseline_width = 301,
     #When smoothing the curve with np.convolve, we destroy amplitude in the r-peaks. We use the detrended signal's 
     #peak amplitude to preserve the r-peak amplitude to stay consistent with a normal ECG waveform. 
     if preserve_peak:
-        #r_peaks = get_r_peaks(detrended_signal)
-        r_peaks = get_r_peaks(baseline_removed)
+        r_peaks = get_r_peaks(detrended_signal)
+        #r_peaks = get_r_peaks(baseline_removed)
         for peak in r_peaks:
             for i in range(num_peak_points):
                 #smooth_signal[peak + i] = detrended_signal[peak + i]
                 #smooth_signal[peak - i] = detrended_signal[peak - i]
-                if peak + i > len(baseline_removed)-1 or peak - i < 0:
+                if peak + i > len(detrended_signal)-1 or peak - i < 0:
                     continue
                 else:
-                    smooth_signal[peak + i] = baseline_removed[peak + i]
-                    smooth_signal[peak - i] = baseline_removed[peak - i]
+                    smooth_signal[peak + i] = detrended_signal[peak + i]
+                    smooth_signal[peak - i] = detrended_signal[peak - i]
                 
     
     
     return smooth_signal
 
-def get_r_peaks(signal, exp = 3, peak_order = 80, high_cut_off = .8, low_cut_off = .5, med_perc = .55, too_noisy = 1.6, noise_level = 5000, noise_points = 10):
+def get_r_peaks(signal, exp = 3, peak_order = 80, high_cut_off = .8, low_cut_off = .5, med_perc = .55, too_noisy = 1.6,
+                noise_level = 5000, noise_points = 10, r_peak_points = 10):
     """
     get the r peaks from raw ecg_signal 
     
@@ -97,6 +100,7 @@ def get_r_peaks(signal, exp = 3, peak_order = 80, high_cut_off = .8, low_cut_off
         too_noisy (float): How many times the median standard deviation around an R peak that flags noise instead of acutal heart beat. Default 1.6
         noise_level (float): Number above which we would consider noise from the original signal. Default 5000
         noise_points (int): Number of points on each side of the peaks to check for the noise level. Default 10
+        r_peak_points (int): Number of points from the derivative critical point to look for the acutal r peak. Default 10
     Returns:
         numpy array: The indexes of the detected r-peaks
     """
@@ -115,7 +119,7 @@ def get_r_peaks(signal, exp = 3, peak_order = 80, high_cut_off = .8, low_cut_off
     peaks = []
     for area in peak_areas:
         try:
-            peaks.append(list(signal).index(max(signal[area-10:area])))
+            peaks.append(list(signal).index(max(signal[area - r_peak_points:area])))
         except ValueError: #if the area is right at the beginning 
             peaks.append(list(signal).index(max(signal[:area])))
     peaks = np.array(peaks)   
@@ -194,7 +198,7 @@ def spo2(ppgR, ppgIR, peak_order = 80, pulse_threshold = -700, consecutive_point
         pulse_threshold (int): Number below which we calssify as not part of the pulse wave. Default -700
         consectuive_points (int): How many consecutive miniumums that should be within the pulse_threshold to know where to start pulling real ppg data. Default 3
     Returns:
-        spo2 (float): The spo2 level (in percent)
+        float: The spo2 level (in percent)
     """
     #cut off ends where user doesn't have a finger on the sensor
     start = 0
@@ -244,7 +248,7 @@ def perfusion_index(ppg, peak_order = 80, pulse_threshold = 1.5, look_distance =
         look_distance (int): How many points after the start of the pulse wave to look for the pulse peak. Default 50
     
     Returns:
-        pi (float): The perfusion index as a percentage
+        float: The perfusion index as a percentage
     """
     #filter out the DC offset 
     filt = filter_ppg(ppg)
@@ -278,7 +282,7 @@ def bpm(ppg, fs = 200, peak_order = 80, pulse_threshold = 1.5): # use Infrared P
         peak_order (int): The approximate number of points to be looking for local minima. Default 80
         pulse_threshold (float): How many times greater than the median above which we classify as non pulse wave. Default 1.5   
     Returns:
-        bpm (float): The average heartrate in beats per minute.
+        float: The average heartrate in beats per minute.
     """
     filt = filter_ppg(ppg)
     mins = sig.argrelmin(filt, order = peak_order)[0]
@@ -308,7 +312,7 @@ def pulse_transit_time(ecg, ppg, fs = 200, peak_order = 80, pulse_threshold = 1.
         peak_order (int): The approximate number of points to be looking for local minima. Default 80
         pulse_threshold (float): How many times greater than the median above which we classify as non pulse wave. Default 1.5
     Returns:
-        median_ptt (float): The median pulse transit time
+        float: The median pulse transit time
     """
     filt = filter_ppg(ppg)
     r_peaks = get_r_peaks(ecg)
