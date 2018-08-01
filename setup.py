@@ -1,7 +1,7 @@
 
 from setuptools import setup
 setup(name='ppg_features',
-      version='1.0',
+      version='1.3.1',
       description='Filter and extract features from finger PPG',
       long_description='',
       author='Jaron C Whittington',
@@ -13,7 +13,7 @@ setup(name='ppg_features',
       install_requires=[
           "numpy",
           "scipy",
-		  "ecg_featre_selection"
+		  "ecg_feature_selection"
       ],
       packages = ['ppg_features'],
       include_package_data=True,

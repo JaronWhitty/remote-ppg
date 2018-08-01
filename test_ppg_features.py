@@ -2,6 +2,7 @@
 import pytest
 from ppg_features import ppg_features as ppg
 import numpy as np
+import scipy.signal as sig
 
 
     
@@ -28,28 +29,35 @@ def set_up_ppg():
 
 def test_spo2(set_up_ppg):
     nsr_IR, nsr_R = set_up_ppg
+    filt_nsr_IR = ppg.filter_ppg(nsr_IR)
+    filt_nsr_R = ppg.filter_ppg(nsr_R)
     noise = [1000, -1000]*1000
     nsr_IR_noise = np.array(noise + list(nsr_IR) + noise)
     nsr_R_noise = np.array(noise + list(nsr_R) + noise)
-    assert ppg.spo2(nsr_R, nsr_IR) > 90
-    assert ppg.spo2(nsr_R, nsr_R) == 85
-    assert ppg.spo2(nsr_IR, nsr_IR) == 85
+    filt_nsr_IR_noise = ppg.filter_ppg(nsr_IR_noise)
+    filt_nsr_R_noise = ppg.filter_ppg(nsr_R_noise)
+    assert ppg.spo2(filt_nsr_R, filt_nsr_IR, nsr_R, nsr_IR) > 90
+    assert ppg.spo2(filt_nsr_R, filt_nsr_R, nsr_R, nsr_R) == 85
+    assert ppg.spo2(filt_nsr_IR, filt_nsr_IR, nsr_IR, nsr_IR) == 85
     #adding noise to the beginning and end of the ppg signal should not effect the spo2 much
-    assert abs(ppg.spo2(nsr_R, nsr_IR) - ppg.spo2(nsr_R_noise, nsr_IR_noise)) < .1
+    assert abs(ppg.spo2(filt_nsr_R, filt_nsr_IR, nsr_R, nsr_IR) - ppg.spo2(filt_nsr_R_noise, filt_nsr_IR_noise, nsr_R_noise, nsr_IR_noise)) < .1
     
 def test_perfusion_index(set_up_ppg):
     nsr_IR, nsr_R = set_up_ppg
     nsr_IR_lessDC = nsr_IR - 10000
-    assert ppg.perfusion_index(nsr_IR) < ppg.perfusion_index(nsr_IR_lessDC)
-    assert ppg.perfusion_index(nsr_R) > ppg.perfusion_index(nsr_IR)
+    filt_nsr_IR = ppg.filter_ppg(nsr_IR)
+    filt_nsr_R = ppg.filter_ppg(nsr_R)
+    filt_nsr_IR_lessDC = ppg.filter_ppg(nsr_IR_lessDC)
+    assert ppg.perfusion_index(filt_nsr_IR, nsr_IR) < ppg.perfusion_index(filt_nsr_IR_lessDC, nsr_IR_lessDC)
+    assert ppg.perfusion_index(filt_nsr_R, nsr_R) > ppg.perfusion_index(filt_nsr_IR, nsr_IR)
 
 @pytest.fixture
 def set_up_bpm():
     x = np.arange(5000)
-    nsr_IR_60 = 350*np.sin(2*np.pi*x/200) + 85000
-    nsr_R_60 = 200*np.sin(2*np.pi*x/200) + 70000
-    nsr_IR_120 = 350*np.sin(2*np.pi*x/100) + 85000
-    nsr_R_120 = 200*np.sin(2*np.pi*x/100) + 70000
+    nsr_IR_60 = ppg.filter_ppg(350*np.sin(2*np.pi*x/200) + 85000)
+    nsr_R_60 = ppg.filter_ppg(200*np.sin(2*np.pi*x/200) + 70000)
+    nsr_IR_120 = ppg.filter_ppg(350*np.sin(2*np.pi*x/100) + 85000)
+    nsr_R_120 = ppg.filter_ppg(200*np.sin(2*np.pi*x/100) + 70000)
     return nsr_IR_60, nsr_R_60, nsr_IR_120, nsr_R_120
     
     
@@ -67,7 +75,9 @@ def set_up_ptt():
 
 def test_pulse_transit_time(set_up_ptt):
     sin_wave, cos_wave = set_up_ptt
+    sin_wave_peaks = sig.argrelmax(sin_wave, order = 80)[0]
+    cos_wave_peaks = sig.argrelmax(cos_wave, order = 80)[0]
     #set up waves are at 60 bpm so the pulse transit time difference should be half a second
-    assert abs(ppg.pulse_transit_time(sin_wave, cos_wave) - ppg.pulse_transit_time(cos_wave, sin_wave)) == 0.5
+    assert abs(ppg.pulse_transit_time(sin_wave_peaks, cos_wave) - ppg.pulse_transit_time(cos_wave_peaks, sin_wave)) == 0.5
     
     
